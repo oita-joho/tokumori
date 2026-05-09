@@ -10,7 +10,7 @@
   <div class="app">
     <header>
       <h1>得点集計</h1>
-      <p>クラスごとの人数を設定して、得点を保存できます</p>
+      <p>クラスごとの人数を設定して、得点と履歴を確認できます</p>
     </header>
 
     <section class="card">
@@ -69,56 +69,38 @@
 
     <section class="card">
       <h2>得点入力</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>番号</th>
-            <th>名前</th>
-            <th>得点</th>
-            <th>履歴</th>
-          </tr>
-        </thead>
-        <tbody id="scoreBody"></tbody>
-      </table>
-    </section>
-
-    <section class="card">
-      <h2 id="studentHistoryTitle">個人の得点履歴</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>日付</th>
-            <th>テーマ</th>
-            <th>クラス</th>
-            <th>番号</th>
-            <th>名前</th>
-            <th>得点</th>
-            <th>満点</th>
-          </tr>
-        </thead>
-        <tbody id="studentHistoryBody">
-          <tr>
-            <td colspan="7" style="text-align:center;">履歴ボタンを押すと表示されます</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>番号</th>
+              <th>名前</th>
+              <th>今回の得点</th>
+              <th>過去10回</th>
+            </tr>
+          </thead>
+          <tbody id="scoreBody"></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="card">
       <h2>最新10回の記録</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>日付</th>
-            <th>テーマ</th>
-            <th>クラス</th>
-            <th>満点</th>
-            <th>人数</th>
-            <th>平均</th>
-          </tr>
-        </thead>
-        <tbody id="historyBody"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>日付</th>
+              <th>テーマ</th>
+              <th>クラス</th>
+              <th>満点</th>
+              <th>人数</th>
+              <th>平均</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
     </section>
   </div>
 
