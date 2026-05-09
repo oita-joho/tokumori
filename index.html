@@ -10,10 +10,12 @@
   <div class="app">
     <header>
       <h1>得点集計</h1>
-      <p>30人 × 8クラスの得点を保存できます</p>
+      <p>クラスごとの人数を設定して、得点を保存できます</p>
     </header>
 
     <section class="card">
+      <h2>基本設定</h2>
+
       <div class="settings">
         <div>
           <label>日付</label>
@@ -43,6 +45,11 @@
             <option value="8">8組</option>
           </select>
         </div>
+
+        <div>
+          <label>このクラスの人数</label>
+          <input type="number" id="classCountInput" min="1" max="60" value="30">
+        </div>
       </div>
 
       <div class="buttons">
@@ -55,12 +62,13 @@
     </section>
 
     <section class="summary">
-      <div>人数：<strong id="countText">0</strong>人</div>
+      <div>入力人数：<strong id="countText">0</strong>人</div>
       <div>合計：<strong id="sumText">0</strong>点</div>
       <div>平均：<strong id="avgText">0</strong>点</div>
     </section>
 
     <section class="card">
+      <h2>得点入力</h2>
       <table>
         <thead>
           <tr>
@@ -72,22 +80,23 @@
         <tbody id="scoreBody"></tbody>
       </table>
     </section>
+
     <section class="card">
-  <h2>最新10回の記録</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>日付</th>
-        <th>テーマ</th>
-        <th>クラス</th>
-        <th>満点</th>
-        <th>人数</th>
-        <th>平均</th>
-      </tr>
-    </thead>
-    <tbody id="historyBody"></tbody>
-  </table>
-</section>
+      <h2>最新10回の記録</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th>テーマ</th>
+            <th>クラス</th>
+            <th>満点</th>
+            <th>人数</th>
+            <th>平均</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </section>
   </div>
 
   <script src="app.js"></script>
