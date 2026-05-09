@@ -9,8 +9,6 @@ const classCountInput = document.getElementById("classCountInput");
 
 const scoreBody = document.getElementById("scoreBody");
 const historyBody = document.getElementById("historyBody");
-const studentHistoryBody = document.getElementById("studentHistoryBody");
-const studentHistoryTitle = document.getElementById("studentHistoryTitle");
 
 const saveBtn = document.getElementById("saveBtn");
 const csvBtn = document.getElementById("csvBtn");
@@ -33,7 +31,7 @@ function todayString() {
 }
 
 function getStorageKey() {
-  return "score-collector-v1";
+  return "score-collector-v2";
 }
 
 function getSettingsKey() {
@@ -71,7 +69,9 @@ function loadSettings() {
     classCounts[String(i)] = DEFAULT_STUDENTS_PER_CLASS;
   }
 
-  return { classCounts };
+  return {
+    classCounts
+  };
 }
 
 function saveSettings() {
@@ -150,6 +150,8 @@ function renderTable() {
   scoreBody.innerHTML = "";
 
   record.students.forEach((student, index) => {
+    const history = getStudentScoreHistory(student.no);
+
     const tr = document.createElement("tr");
 
     tr.innerHTML = `
@@ -158,11 +160,9 @@ function renderTable() {
         <input type="text" class="name-input" data-index="${index}" value="${escapeHtml(student.name)}">
       </td>
       <td class="score">
-        <input type="number" class="score-input" data-index="${index}" value="${student.score}" min="0" max="${record.maxScore || 100}">
+        <input type="number" class="score-input" data-index="${index}" value="${escapeHtml(student.score)}" min="0" max="${record.maxScore || 100}">
       </td>
-      <td>
-        <button type="button" class="history-btn" data-index="${index}">履歴</button>
-      </td>
+      <td class="past-scores">${history}</td>
     `;
 
     scoreBody.appendChild(tr);
@@ -173,6 +173,7 @@ function renderTable() {
       const index = Number(e.target.dataset.index);
       record.students[index].name = e.target.value;
       autoSave();
+      renderTable();
     });
   });
 
@@ -182,18 +183,47 @@ function renderTable() {
       record.students[index].score = e.target.value;
       autoSave();
       updateSummary();
-    });
-  });
-
-  document.querySelectorAll(".history-btn").forEach(button => {
-    button.addEventListener("click", e => {
-      const index = Number(e.target.dataset.index);
-      const student = record.students[index];
-      renderStudentHistory(student.no, student.name);
+      renderTable();
     });
   });
 
   updateSummary();
+}
+
+function getStudentScoreHistory(studentNo) {
+  const currentClass = classSelect.value;
+  const currentKey = makeRecordKey();
+
+  const records = Object.entries(appData)
+    .filter(([key, record]) => {
+      return String(record.classNo) === String(currentClass) && key !== currentKey;
+    })
+    .sort((a, b) => {
+      const ad = a[1].updatedAt || a[1].date || "";
+      const bd = b[1].updatedAt || b[1].date || "";
+      return bd.localeCompare(ad);
+    });
+
+  const scores = [];
+
+  records.forEach(([key, record]) => {
+    if (!Array.isArray(record.students)) return;
+
+    const student = record.students.find(s => Number(s.no) === Number(studentNo));
+
+    if (!student) return;
+    if (student.score === "" || student.score === null || student.score === undefined) return;
+
+    scores.push(`${record.date || ""} ${record.theme || ""}：${student.score}/${record.maxScore || ""}`);
+  });
+
+  if (scores.length === 0) {
+    return `<span class="muted">履歴なし</span>`;
+  }
+
+  return scores.slice(0, 10).map(score => {
+    return `<span class="score-chip">${escapeHtml(score)}</span>`;
+  }).join("");
 }
 
 function updateSummary() {
@@ -261,7 +291,6 @@ function loadCurrentRecordToInputs() {
 
   renderTable();
   renderHistory();
-  clearStudentHistoryMessage();
 }
 
 function clearCurrentClass() {
@@ -283,7 +312,6 @@ function clearCurrentClass() {
   saveAllData();
   renderTable();
   renderHistory();
-  clearStudentHistoryMessage();
 
   showStatus("初期化しました");
 }
@@ -301,10 +329,13 @@ function exportCSV() {
     "人数設定",
     "番号",
     "名前",
-    "得点"
+    "得点",
+    "過去10回"
   ]);
 
   record.students.forEach(student => {
+    const historyText = getStudentScoreHistoryText(student.no);
+
     rows.push([
       record.date,
       record.theme,
@@ -313,7 +344,8 @@ function exportCSV() {
       record.classCount,
       student.no,
       student.name,
-      student.score
+      student.score,
+      historyText
     ]);
   });
 
@@ -335,6 +367,36 @@ function exportCSV() {
   a.click();
 
   URL.revokeObjectURL(a.href);
+}
+
+function getStudentScoreHistoryText(studentNo) {
+  const currentClass = classSelect.value;
+  const currentKey = makeRecordKey();
+
+  const records = Object.entries(appData)
+    .filter(([key, record]) => {
+      return String(record.classNo) === String(currentClass) && key !== currentKey;
+    })
+    .sort((a, b) => {
+      const ad = a[1].updatedAt || a[1].date || "";
+      const bd = b[1].updatedAt || b[1].date || "";
+      return bd.localeCompare(ad);
+    });
+
+  const scores = [];
+
+  records.forEach(([key, record]) => {
+    if (!Array.isArray(record.students)) return;
+
+    const student = record.students.find(s => Number(s.no) === Number(studentNo));
+
+    if (!student) return;
+    if (student.score === "" || student.score === null || student.score === undefined) return;
+
+    scores.push(`${record.date || ""} ${record.theme || ""}：${student.score}/${record.maxScore || ""}`);
+  });
+
+  return scores.slice(0, 10).join(" / ");
 }
 
 function renderHistory() {
@@ -366,106 +428,32 @@ function renderHistory() {
     let count = 0;
     let sum = 0;
 
-    record.students.forEach(student => {
-      const score = Number(student.score);
+    if (Array.isArray(record.students)) {
+      record.students.forEach(student => {
+        const score = Number(student.score);
 
-      if (student.score !== "" && !isNaN(score)) {
-        count++;
-        sum += score;
-      }
-    });
+        if (student.score !== "" && !isNaN(score)) {
+          count++;
+          sum += score;
+        }
+      });
+    }
 
     const avg = count > 0 ? (sum / count).toFixed(1) : "0";
 
     const tr = document.createElement("tr");
 
     tr.innerHTML = `
-      <td>${record.date || ""}</td>
+      <td>${escapeHtml(record.date || "")}</td>
       <td>${escapeHtml(record.theme || "")}</td>
-      <td>${record.classNo}組</td>
-      <td>${record.maxScore || ""}</td>
+      <td>${escapeHtml(record.classNo || "")}組</td>
+      <td>${escapeHtml(record.maxScore || "")}</td>
       <td>${count}</td>
       <td>${avg}</td>
     `;
 
     historyBody.appendChild(tr);
   });
-}
-
-function renderStudentHistory(studentNo, studentName) {
-  if (!studentHistoryBody) return;
-
-  const currentClass = classSelect.value;
-
-  studentHistoryTitle.textContent = `個人の得点履歴：${currentClass}組 ${studentNo}番 ${studentName || "名前未入力"}`;
-
-  const records = Object.values(appData)
-    .filter(record => String(record.classNo) === String(currentClass))
-    .sort((a, b) => {
-      const ad = a.updatedAt || a.date || "";
-      const bd = b.updatedAt || b.date || "";
-      return bd.localeCompare(ad);
-    });
-
-  const rows = [];
-
-  records.forEach(record => {
-    const student = record.students.find(s => Number(s.no) === Number(studentNo));
-
-    if (!student) return;
-
-    if (student.score === "" || student.score === null || student.score === undefined) return;
-
-    rows.push({
-      date: record.date || "",
-      theme: record.theme || "",
-      classNo: record.classNo || "",
-      no: student.no,
-      name: student.name || studentName || "",
-      score: student.score,
-      maxScore: record.maxScore || ""
-    });
-  });
-
-  const latestRows = rows.slice(0, 10);
-
-  studentHistoryBody.innerHTML = "";
-
-  if (latestRows.length === 0) {
-    studentHistoryBody.innerHTML = `
-      <tr>
-        <td colspan="7" style="text-align:center;">この生徒の得点履歴はまだありません</td>
-      </tr>
-    `;
-    return;
-  }
-
-  latestRows.forEach(row => {
-    const tr = document.createElement("tr");
-
-    tr.innerHTML = `
-      <td>${row.date}</td>
-      <td>${escapeHtml(row.theme)}</td>
-      <td>${row.classNo}組</td>
-      <td>${row.no}</td>
-      <td>${escapeHtml(row.name)}</td>
-      <td>${escapeHtml(row.score)}</td>
-      <td>${escapeHtml(row.maxScore)}</td>
-    `;
-
-    studentHistoryBody.appendChild(tr);
-  });
-}
-
-function clearStudentHistoryMessage() {
-  if (!studentHistoryBody) return;
-
-  studentHistoryTitle.textContent = "個人の得点履歴";
-  studentHistoryBody.innerHTML = `
-    <tr>
-      <td colspan="7" style="text-align:center;">履歴ボタンを押すと表示されます</td>
-    </tr>
-  `;
 }
 
 function showStatus(message) {
@@ -522,11 +510,9 @@ classCountInput.addEventListener("change", () => {
   saveAllData();
   renderTable();
   renderHistory();
-  clearStudentHistoryMessage();
 
   showStatus(`${classNo}組の人数を${getClassCount()}人にしました`);
 });
 
 renderTable();
 renderHistory();
-clearStudentHistoryMessage();
