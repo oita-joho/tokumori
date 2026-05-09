@@ -33,7 +33,7 @@ function todayString() {
 }
 
 function getStorageKey() {
-  return "score-collector-v2";
+  return "score-collector-v1";
 }
 
 function getSettingsKey() {
