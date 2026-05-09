@@ -9,6 +9,8 @@ const classCountInput = document.getElementById("classCountInput");
 
 const scoreBody = document.getElementById("scoreBody");
 const historyBody = document.getElementById("historyBody");
+const studentHistoryBody = document.getElementById("studentHistoryBody");
+const studentHistoryTitle = document.getElementById("studentHistoryTitle");
 
 const saveBtn = document.getElementById("saveBtn");
 const csvBtn = document.getElementById("csvBtn");
@@ -69,9 +71,7 @@ function loadSettings() {
     classCounts[String(i)] = DEFAULT_STUDENTS_PER_CLASS;
   }
 
-  return {
-    classCounts
-  };
+  return { classCounts };
 }
 
 function saveSettings() {
@@ -160,6 +160,9 @@ function renderTable() {
       <td class="score">
         <input type="number" class="score-input" data-index="${index}" value="${student.score}" min="0" max="${record.maxScore || 100}">
       </td>
+      <td>
+        <button type="button" class="history-btn" data-index="${index}">履歴</button>
+      </td>
     `;
 
     scoreBody.appendChild(tr);
@@ -179,6 +182,14 @@ function renderTable() {
       record.students[index].score = e.target.value;
       autoSave();
       updateSummary();
+    });
+  });
+
+  document.querySelectorAll(".history-btn").forEach(button => {
+    button.addEventListener("click", e => {
+      const index = Number(e.target.dataset.index);
+      const student = record.students[index];
+      renderStudentHistory(student.no, student.name);
     });
   });
 
@@ -250,6 +261,7 @@ function loadCurrentRecordToInputs() {
 
   renderTable();
   renderHistory();
+  clearStudentHistoryMessage();
 }
 
 function clearCurrentClass() {
@@ -271,6 +283,7 @@ function clearCurrentClass() {
   saveAllData();
   renderTable();
   renderHistory();
+  clearStudentHistoryMessage();
 
   showStatus("初期化しました");
 }
@@ -379,6 +392,82 @@ function renderHistory() {
   });
 }
 
+function renderStudentHistory(studentNo, studentName) {
+  if (!studentHistoryBody) return;
+
+  const currentClass = classSelect.value;
+
+  studentHistoryTitle.textContent = `個人の得点履歴：${currentClass}組 ${studentNo}番 ${studentName || "名前未入力"}`;
+
+  const records = Object.values(appData)
+    .filter(record => String(record.classNo) === String(currentClass))
+    .sort((a, b) => {
+      const ad = a.updatedAt || a.date || "";
+      const bd = b.updatedAt || b.date || "";
+      return bd.localeCompare(ad);
+    });
+
+  const rows = [];
+
+  records.forEach(record => {
+    const student = record.students.find(s => Number(s.no) === Number(studentNo));
+
+    if (!student) return;
+
+    if (student.score === "" || student.score === null || student.score === undefined) return;
+
+    rows.push({
+      date: record.date || "",
+      theme: record.theme || "",
+      classNo: record.classNo || "",
+      no: student.no,
+      name: student.name || studentName || "",
+      score: student.score,
+      maxScore: record.maxScore || ""
+    });
+  });
+
+  const latestRows = rows.slice(0, 10);
+
+  studentHistoryBody.innerHTML = "";
+
+  if (latestRows.length === 0) {
+    studentHistoryBody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center;">この生徒の得点履歴はまだありません</td>
+      </tr>
+    `;
+    return;
+  }
+
+  latestRows.forEach(row => {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>${row.date}</td>
+      <td>${escapeHtml(row.theme)}</td>
+      <td>${row.classNo}組</td>
+      <td>${row.no}</td>
+      <td>${escapeHtml(row.name)}</td>
+      <td>${escapeHtml(row.score)}</td>
+      <td>${escapeHtml(row.maxScore)}</td>
+    `;
+
+    studentHistoryBody.appendChild(tr);
+  });
+}
+
+function clearStudentHistoryMessage() {
+  if (!studentHistoryBody) return;
+
+  studentHistoryTitle.textContent = "個人の得点履歴";
+  studentHistoryBody.innerHTML = `
+    <tr>
+      <td colspan="7" style="text-align:center;">履歴ボタンを押すと表示されます</td>
+    </tr>
+  `;
+}
+
 function showStatus(message) {
   statusEl.textContent = message;
 
@@ -433,9 +522,11 @@ classCountInput.addEventListener("change", () => {
   saveAllData();
   renderTable();
   renderHistory();
+  clearStudentHistoryMessage();
 
   showStatus(`${classNo}組の人数を${getClassCount()}人にしました`);
 });
 
 renderTable();
 renderHistory();
+clearStudentHistoryMessage();
