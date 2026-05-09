@@ -1,10 +1,12 @@
 const TOTAL_CLASSES = 8;
-const STUDENTS_PER_CLASS = 30;
+const DEFAULT_STUDENTS_PER_CLASS = 30;
 
 const dateInput = document.getElementById("dateInput");
 const themeInput = document.getElementById("themeInput");
 const maxScoreInput = document.getElementById("maxScoreInput");
 const classSelect = document.getElementById("classSelect");
+const classCountInput = document.getElementById("classCountInput");
+
 const scoreBody = document.getElementById("scoreBody");
 const historyBody = document.getElementById("historyBody");
 
@@ -18,6 +20,7 @@ const sumText = document.getElementById("sumText");
 const avgText = document.getElementById("avgText");
 
 let appData = loadAllData();
+let appSettings = loadSettings();
 
 function todayString() {
   const d = new Date();
@@ -28,7 +31,11 @@ function todayString() {
 }
 
 function getStorageKey() {
-  return "score-collector-v1";
+  return "score-collector-v2";
+}
+
+function getSettingsKey() {
+  return "score-collector-settings-v1";
 }
 
 function makeRecordKey() {
@@ -51,10 +58,42 @@ function saveAllData() {
   localStorage.setItem(getStorageKey(), JSON.stringify(appData));
 }
 
-function createEmptyStudents() {
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(getSettingsKey());
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+
+  const classCounts = {};
+  for (let i = 1; i <= TOTAL_CLASSES; i++) {
+    classCounts[String(i)] = DEFAULT_STUDENTS_PER_CLASS;
+  }
+
+  return {
+    classCounts
+  };
+}
+
+function saveSettings() {
+  localStorage.setItem(getSettingsKey(), JSON.stringify(appSettings));
+}
+
+function getClassCount(classNo = classSelect.value) {
+  const count = Number(appSettings.classCounts[String(classNo)]);
+  if (!count || count < 1) return DEFAULT_STUDENTS_PER_CLASS;
+  return count;
+}
+
+function setClassCount(classNo, count) {
+  const safeCount = Math.max(1, Math.min(60, Number(count) || DEFAULT_STUDENTS_PER_CLASS));
+  appSettings.classCounts[String(classNo)] = safeCount;
+  saveSettings();
+}
+
+function createEmptyStudents(count) {
   const students = [];
 
-  for (let i = 1; i <= STUDENTS_PER_CLASS; i++) {
+  for (let i = 1; i <= count; i++) {
     students.push({
       no: i,
       name: "",
@@ -65,19 +104,43 @@ function createEmptyStudents() {
   return students;
 }
 
+function adjustStudentsLength(students, count) {
+  const list = Array.isArray(students) ? students : [];
+
+  for (let i = 0; i < count; i++) {
+    if (!list[i]) {
+      list[i] = {
+        no: i + 1,
+        name: "",
+        score: ""
+      };
+    }
+
+    list[i].no = i + 1;
+  }
+
+  return list.slice(0, count);
+}
+
 function getCurrentRecord() {
   const key = makeRecordKey();
+  const classNo = classSelect.value;
+  const count = getClassCount(classNo);
 
   if (!appData[key]) {
     appData[key] = {
       date: dateInput.value || todayString(),
       theme: themeInput.value.trim() || "無題",
       maxScore: maxScoreInput.value || 100,
-      classNo: classSelect.value,
-      students: createEmptyStudents(),
+      classNo,
+      classCount: count,
+      students: createEmptyStudents(count),
       updatedAt: new Date().toISOString()
     };
   }
+
+  appData[key].classCount = count;
+  appData[key].students = adjustStudentsLength(appData[key].students, count);
 
   return appData[key];
 }
@@ -152,6 +215,7 @@ function saveCurrentRecord() {
   record.theme = themeInput.value.trim() || "無題";
   record.maxScore = maxScoreInput.value || 100;
   record.classNo = classSelect.value;
+  record.classCount = getClassCount();
   record.updatedAt = new Date().toISOString();
 
   appData[key] = record;
@@ -169,6 +233,7 @@ function autoSave() {
   record.theme = themeInput.value.trim() || "無題";
   record.maxScore = maxScoreInput.value || 100;
   record.classNo = classSelect.value;
+  record.classCount = getClassCount();
   record.updatedAt = new Date().toISOString();
 
   appData[key] = record;
@@ -181,6 +246,7 @@ function loadCurrentRecordToInputs() {
   const record = getCurrentRecord();
 
   maxScoreInput.value = record.maxScore || 100;
+  classCountInput.value = getClassCount();
 
   renderTable();
   renderHistory();
@@ -190,13 +256,15 @@ function clearCurrentClass() {
   if (!confirm("このクラスの入力内容を初期化しますか？")) return;
 
   const key = makeRecordKey();
+  const count = getClassCount();
 
   appData[key] = {
     date: dateInput.value || todayString(),
     theme: themeInput.value.trim() || "無題",
     maxScore: maxScoreInput.value || 100,
     classNo: classSelect.value,
-    students: createEmptyStudents(),
+    classCount: count,
+    students: createEmptyStudents(count),
     updatedAt: new Date().toISOString()
   };
 
@@ -217,6 +285,7 @@ function exportCSV() {
     "テーマ",
     "満点",
     "クラス",
+    "人数設定",
     "番号",
     "名前",
     "得点"
@@ -228,6 +297,7 @@ function exportCSV() {
       record.theme,
       record.maxScore,
       `${record.classNo}組`,
+      record.classCount,
       student.no,
       student.name,
       student.score
@@ -327,6 +397,7 @@ function escapeHtml(str) {
 }
 
 dateInput.value = todayString();
+classCountInput.value = getClassCount();
 
 saveBtn.addEventListener("click", saveCurrentRecord);
 csvBtn.addEventListener("click", exportCSV);
@@ -346,7 +417,24 @@ maxScoreInput.addEventListener("input", () => {
 });
 
 classSelect.addEventListener("change", () => {
+  classCountInput.value = getClassCount();
   loadCurrentRecordToInputs();
+});
+
+classCountInput.addEventListener("change", () => {
+  const classNo = classSelect.value;
+  setClassCount(classNo, classCountInput.value);
+
+  const record = getCurrentRecord();
+  record.classCount = getClassCount();
+  record.students = adjustStudentsLength(record.students, getClassCount());
+  record.updatedAt = new Date().toISOString();
+
+  saveAllData();
+  renderTable();
+  renderHistory();
+
+  showStatus(`${classNo}組の人数を${getClassCount()}人にしました`);
 });
 
 renderTable();
