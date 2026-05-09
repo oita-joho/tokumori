@@ -6,6 +6,7 @@ const themeInput = document.getElementById("themeInput");
 const maxScoreInput = document.getElementById("maxScoreInput");
 const classSelect = document.getElementById("classSelect");
 const scoreBody = document.getElementById("scoreBody");
+const historyBody = document.getElementById("historyBody");
 
 const saveBtn = document.getElementById("saveBtn");
 const csvBtn = document.getElementById("csvBtn");
@@ -52,6 +53,7 @@ function saveAllData() {
 
 function createEmptyStudents() {
   const students = [];
+
   for (let i = 1; i <= STUDENTS_PER_CLASS; i++) {
     students.push({
       no: i,
@@ -59,6 +61,7 @@ function createEmptyStudents() {
       score: ""
     });
   }
+
   return students;
 }
 
@@ -71,7 +74,8 @@ function getCurrentRecord() {
       theme: themeInput.value.trim() || "無題",
       maxScore: maxScoreInput.value || 100,
       classNo: classSelect.value,
-      students: createEmptyStudents()
+      students: createEmptyStudents(),
+      updatedAt: new Date().toISOString()
     };
   }
 
@@ -91,7 +95,7 @@ function renderTable() {
         <input type="text" class="name-input" data-index="${index}" value="${escapeHtml(student.name)}">
       </td>
       <td class="score">
-        <input type="number" class="score-input" data-index="${index}" value="${student.score}" min="0">
+        <input type="number" class="score-input" data-index="${index}" value="${student.score}" min="0" max="${record.maxScore || 100}">
       </td>
     `;
 
@@ -120,11 +124,13 @@ function renderTable() {
 
 function updateSummary() {
   const record = getCurrentRecord();
+
   let count = 0;
   let sum = 0;
 
   record.students.forEach(student => {
     const score = Number(student.score);
+
     if (student.score !== "" && !isNaN(score)) {
       count++;
       sum += score;
@@ -139,51 +145,65 @@ function updateSummary() {
 }
 
 function saveCurrentRecord() {
-  const oldKey = makeRecordKey();
+  const key = makeRecordKey();
   const record = getCurrentRecord();
 
   record.date = dateInput.value || todayString();
   record.theme = themeInput.value.trim() || "無題";
   record.maxScore = maxScoreInput.value || 100;
   record.classNo = classSelect.value;
+  record.updatedAt = new Date().toISOString();
 
-  appData[oldKey] = record;
+  appData[key] = record;
   saveAllData();
 
+  renderHistory();
   showStatus("保存しました");
 }
 
 function autoSave() {
+  const key = makeRecordKey();
   const record = getCurrentRecord();
 
   record.date = dateInput.value || todayString();
   record.theme = themeInput.value.trim() || "無題";
   record.maxScore = maxScoreInput.value || 100;
   record.classNo = classSelect.value;
+  record.updatedAt = new Date().toISOString();
 
+  appData[key] = record;
   saveAllData();
+
+  renderHistory();
 }
 
 function loadCurrentRecordToInputs() {
   const record = getCurrentRecord();
+
   maxScoreInput.value = record.maxScore || 100;
+
   renderTable();
+  renderHistory();
 }
 
 function clearCurrentClass() {
   if (!confirm("このクラスの入力内容を初期化しますか？")) return;
 
   const key = makeRecordKey();
+
   appData[key] = {
     date: dateInput.value || todayString(),
     theme: themeInput.value.trim() || "無題",
     maxScore: maxScoreInput.value || 100,
     classNo: classSelect.value,
-    students: createEmptyStudents()
+    students: createEmptyStudents(),
+    updatedAt: new Date().toISOString()
   };
 
   saveAllData();
   renderTable();
+  renderHistory();
+
   showStatus("初期化しました");
 }
 
@@ -191,6 +211,7 @@ function exportCSV() {
   const record = getCurrentRecord();
 
   const rows = [];
+
   rows.push([
     "日付",
     "テーマ",
@@ -218,7 +239,9 @@ function exportCSV() {
   ).join("\n");
 
   const bom = "\uFEFF";
-  const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([bom + csv], {
+    type: "text/csv;charset=utf-8;"
+  });
 
   const fileName = `得点集計_${record.date}_${record.classNo}組_${record.theme}.csv`
     .replace(/[\\/:*?"<>|]/g, "_");
@@ -231,8 +254,64 @@ function exportCSV() {
   URL.revokeObjectURL(a.href);
 }
 
+function renderHistory() {
+  if (!historyBody) return;
+
+  const currentClass = classSelect.value;
+
+  const records = Object.values(appData)
+    .filter(record => String(record.classNo) === String(currentClass))
+    .sort((a, b) => {
+      const ad = a.updatedAt || a.date || "";
+      const bd = b.updatedAt || b.date || "";
+      return bd.localeCompare(ad);
+    })
+    .slice(0, 10);
+
+  historyBody.innerHTML = "";
+
+  if (records.length === 0) {
+    historyBody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;">まだ記録がありません</td>
+      </tr>
+    `;
+    return;
+  }
+
+  records.forEach(record => {
+    let count = 0;
+    let sum = 0;
+
+    record.students.forEach(student => {
+      const score = Number(student.score);
+
+      if (student.score !== "" && !isNaN(score)) {
+        count++;
+        sum += score;
+      }
+    });
+
+    const avg = count > 0 ? (sum / count).toFixed(1) : "0";
+
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>${record.date || ""}</td>
+      <td>${escapeHtml(record.theme || "")}</td>
+      <td>${record.classNo}組</td>
+      <td>${record.maxScore || ""}</td>
+      <td>${count}</td>
+      <td>${avg}</td>
+    `;
+
+    historyBody.appendChild(tr);
+  });
+}
+
 function showStatus(message) {
   statusEl.textContent = message;
+
   setTimeout(() => {
     statusEl.textContent = "";
   }, 2500);
@@ -263,6 +342,7 @@ themeInput.addEventListener("change", () => {
 
 maxScoreInput.addEventListener("input", () => {
   autoSave();
+  renderTable();
 });
 
 classSelect.addEventListener("change", () => {
@@ -270,3 +350,4 @@ classSelect.addEventListener("change", () => {
 });
 
 renderTable();
+renderHistory();
