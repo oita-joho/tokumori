@@ -21,6 +21,7 @@ const avgText = document.getElementById("avgText");
 
 let appData = loadAllData();
 let appSettings = loadSettings();
+let hasUnsavedChanges = false;
 
 function todayString() {
   const d = new Date();
@@ -135,7 +136,7 @@ function getCurrentRecord() {
       classNo,
       classCount: count,
       students: createEmptyStudents(count),
-      updatedAt: new Date().toISOString()
+      updatedAt: ""
     };
   }
 
@@ -172,8 +173,8 @@ function renderTable() {
     input.addEventListener("input", e => {
       const index = Number(e.target.dataset.index);
       record.students[index].name = e.target.value;
-      autoSave();
-      renderTable();
+      hasUnsavedChanges = true;
+      showStatus("未保存の変更があります");
     });
   });
 
@@ -181,9 +182,9 @@ function renderTable() {
     input.addEventListener("input", e => {
       const index = Number(e.target.dataset.index);
       record.students[index].score = e.target.value;
-      autoSave();
+      hasUnsavedChanges = true;
       updateSummary();
-      renderTable();
+      showStatus("未保存の変更があります");
     });
   });
 
@@ -196,7 +197,9 @@ function getStudentScoreHistory(studentNo) {
 
   const records = Object.entries(appData)
     .filter(([key, record]) => {
-      return String(record.classNo) === String(currentClass) && key !== currentKey;
+      return String(record.classNo) === String(currentClass) &&
+             key !== currentKey &&
+             record.updatedAt;
     })
     .sort((a, b) => {
       const ad = a[1].updatedAt || a[1].date || "";
@@ -262,25 +265,12 @@ function saveCurrentRecord() {
   appData[key] = record;
   saveAllData();
 
+  hasUnsavedChanges = false;
+
+  renderTable();
   renderHistory();
+
   showStatus("保存しました");
-}
-
-function autoSave() {
-  const key = makeRecordKey();
-  const record = getCurrentRecord();
-
-  record.date = dateInput.value || todayString();
-  record.theme = themeInput.value.trim() || "無題";
-  record.maxScore = maxScoreInput.value || 100;
-  record.classNo = classSelect.value;
-  record.classCount = getClassCount();
-  record.updatedAt = new Date().toISOString();
-
-  appData[key] = record;
-  saveAllData();
-
-  renderHistory();
 }
 
 function loadCurrentRecordToInputs() {
@@ -310,6 +300,8 @@ function clearCurrentClass() {
   };
 
   saveAllData();
+  hasUnsavedChanges = false;
+
   renderTable();
   renderHistory();
 
@@ -375,7 +367,9 @@ function getStudentScoreHistoryText(studentNo) {
 
   const records = Object.entries(appData)
     .filter(([key, record]) => {
-      return String(record.classNo) === String(currentClass) && key !== currentKey;
+      return String(record.classNo) === String(currentClass) &&
+             key !== currentKey &&
+             record.updatedAt;
     })
     .sort((a, b) => {
       const ad = a[1].updatedAt || a[1].date || "";
@@ -405,7 +399,7 @@ function renderHistory() {
   const currentClass = classSelect.value;
 
   const records = Object.values(appData)
-    .filter(record => String(record.classNo) === String(currentClass))
+    .filter(record => String(record.classNo) === String(currentClass) && record.updatedAt)
     .sort((a, b) => {
       const ad = a.updatedAt || a.date || "";
       const bd = b.updatedAt || b.date || "";
@@ -456,11 +450,18 @@ function renderHistory() {
   });
 }
 
+function confirmUnsaved(message) {
+  if (!hasUnsavedChanges) return true;
+  return confirm(message);
+}
+
 function showStatus(message) {
   statusEl.textContent = message;
 
   setTimeout(() => {
-    statusEl.textContent = "";
+    if (!hasUnsavedChanges) {
+      statusEl.textContent = "";
+    }
   }, 2500);
 }
 
@@ -481,37 +482,47 @@ csvBtn.addEventListener("click", exportCSV);
 clearBtn.addEventListener("click", clearCurrentClass);
 
 dateInput.addEventListener("change", () => {
+  if (!confirmUnsaved("保存していない変更があります。日付を変更しますか？")) return;
+  hasUnsavedChanges = false;
   loadCurrentRecordToInputs();
 });
 
 themeInput.addEventListener("change", () => {
+  if (!confirmUnsaved("保存していない変更があります。テーマを変更しますか？")) return;
+  hasUnsavedChanges = false;
   loadCurrentRecordToInputs();
 });
 
 maxScoreInput.addEventListener("input", () => {
-  autoSave();
-  renderTable();
+  const record = getCurrentRecord();
+  record.maxScore = maxScoreInput.value || 100;
+  hasUnsavedChanges = true;
+  showStatus("未保存の変更があります");
 });
 
 classSelect.addEventListener("change", () => {
+  if (!confirmUnsaved("保存していない変更があります。クラスを変更しますか？")) return;
+  hasUnsavedChanges = false;
   classCountInput.value = getClassCount();
   loadCurrentRecordToInputs();
 });
 
 classCountInput.addEventListener("change", () => {
+  if (!confirmUnsaved("保存していない変更があります。人数を変更しますか？")) return;
+
   const classNo = classSelect.value;
   setClassCount(classNo, classCountInput.value);
 
   const record = getCurrentRecord();
   record.classCount = getClassCount();
   record.students = adjustStudentsLength(record.students, getClassCount());
-  record.updatedAt = new Date().toISOString();
 
-  saveAllData();
+  hasUnsavedChanges = true;
+
   renderTable();
   renderHistory();
 
-  showStatus(`${classNo}組の人数を${getClassCount()}人にしました`);
+  showStatus(`${classNo}組の人数を${getClassCount()}人にしました。保存ボタンを押してください`);
 });
 
 renderTable();
